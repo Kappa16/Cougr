@@ -1,1 +1,0 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/components/Creator/ClueBuilder.tsx","./src/components/Creator/StepIndicator.tsx","./src/lib/contractClient.ts","./src/lib/latinSquare.ts","./src/pages/Create.tsx","./src/types/index.ts"],"version":"5.7.3"}
