@@ -276,6 +276,103 @@ macro_rules! impl_marker_component {
     };
 }
 
+/// Implement [`RichComponentTrait`] for a struct.
+///
+/// The struct must derive `#[contracttype]`, which provides XDR serialization
+/// for free. This macro only adds the `component_type()` name lookup.
+///
+/// Unlike [`impl_component!`], the component name is not limited to 9
+/// characters.
+///
+/// # Example
+/// ```no_run
+/// use cougr_core::impl_rich_component;
+/// use soroban_sdk::{contracttype, String, Vec};
+///
+/// #[contracttype]
+/// #[derive(Clone)]
+/// pub struct Inventory {
+///     pub items: Vec<soroban_sdk::Bytes>,
+///     pub capacity: u32,
+/// }
+///
+/// impl_rich_component!(Inventory, "inventory");
+/// ```
+///
+/// [`RichComponentTrait`]: crate::rich_component::RichComponentTrait
+#[macro_export]
+macro_rules! impl_rich_component {
+    ($struct_name:ident, $name:expr) => {
+        impl $crate::rich_component::RichComponentTrait for $struct_name {
+            fn component_type(env: &soroban_sdk::Env) -> soroban_sdk::Symbol {
+                soroban_sdk::Symbol::new(env, $name)
+            }
+        }
+    };
+}
+
+/// Implement both [`ComponentTrait`] and [`ObservableComponentTrait`] for a
+/// struct, emitting structured Soroban events on every `set` and `del`
+/// operation.
+///
+/// The struct must derive `#[contracttype]` so that Soroban can XDR-encode it
+/// as event data.
+///
+/// Events are published with topics:
+/// ```text
+/// (COUGR, set|del, <component_symbol>)
+/// ```
+///
+/// # Example
+/// ```no_run
+/// use cougr_core::impl_component_observed;
+/// use soroban_sdk::contracttype;
+///
+/// #[contracttype]
+/// #[derive(Clone, Debug)]
+/// pub struct Health {
+///     pub current: u32,
+///     pub max: u32,
+/// }
+///
+/// impl_component_observed!(Health, "health", Table, { current: u32, max: u32 });
+/// ```
+///
+/// [`ComponentTrait`]: crate::component::ComponentTrait
+/// [`ObservableComponentTrait`]: crate::ecs_events::ObservableComponentTrait
+#[macro_export]
+macro_rules! impl_component_observed {
+    ($struct_name:ident, $symbol:expr, $storage:ident, { $( $field:ident : $ftype:tt ),* $(,)? }) => {
+        $crate::impl_component!($struct_name, $symbol, $storage, { $( $field : $ftype ),* });
+
+        impl $crate::ecs_events::ObservableComponentTrait for $struct_name {
+            fn emit_set_event(
+                env: &soroban_sdk::Env,
+                entity_id: $crate::simple_world::EntityId,
+                data: &soroban_sdk::Bytes,
+            ) {
+                $crate::ecs_events::ComponentSetEvent {
+                    component_type: soroban_sdk::Symbol::new(env, $symbol),
+                    entity_id,
+                    data: data.clone(),
+                }
+                .publish(env);
+            }
+
+            fn emit_remove_event(
+                env: &soroban_sdk::Env,
+                entity_id: $crate::simple_world::EntityId,
+            ) {
+                $crate::ecs_events::ComponentRemovedEvent {
+                    component_type: soroban_sdk::Symbol::new(env, $symbol),
+                    entity_id,
+                }
+                .publish(env);
+            }
+        }
+    };
+}
+
 /// Implement `ResourceTrait` for a struct with fixed-size fields.
 ///
 /// Generates serialization/deserialization using big-endian byte encoding.

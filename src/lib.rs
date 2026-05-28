@@ -66,6 +66,7 @@ pub mod component;
 #[doc(hidden)]
 pub mod debug;
 pub mod ecs;
+pub mod ecs_events;
 pub mod error;
 pub mod event;
 mod hooks;
@@ -74,6 +75,7 @@ mod observers;
 pub mod plugin;
 pub mod query;
 pub mod resource;
+pub mod rich_component;
 pub mod scheduler;
 pub mod simple_world;
 pub mod standards;
@@ -101,6 +103,8 @@ pub mod app {
         RuntimeWorldMut, ScheduleError, ScheduleStage, SimpleQuery, SimpleQueryBuilder,
         SimpleScheduler, SimpleWorld, SystemConfig, SystemGroup,
     };
+    pub use crate::ecs_events::ObservableComponentTrait;
+    pub use crate::rich_component::RichComponentTrait;
     pub use crate::system::{
         context_system, named_app_system, named_context_system, named_system, world_system,
         AppSystem, SimpleSystem, SystemContext, SystemSpec,
@@ -140,13 +144,17 @@ pub mod prelude {
         PluginGroup, Position, QueryStorage, Resource, RuntimeWorld, RuntimeWorldMut, SimpleQuery,
         SimpleQueryBuilder, SimpleWorld, WorldBackend,
     };
+    pub use crate::ecs_events::ObservableComponentTrait;
+    pub use crate::rich_component::RichComponentTrait;
     pub use crate::system::SystemContext;
 }
 
 /// Advanced runtime primitives that remain supported but are not part of the
 /// smallest onboarding surface.
 pub mod runtime {
+    pub use super::ecs_events::ObservableComponentTrait;
     pub use super::observers::ComponentEvent;
+    pub use super::rich_component::RichComponentTrait;
     pub use super::{
         archetype_world::{ArchetypeQueryCache, ArchetypeQueryState},
         change_tracker::{ChangeTracker, TrackedWorld},
