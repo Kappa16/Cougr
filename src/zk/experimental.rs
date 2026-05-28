@@ -8,8 +8,10 @@ pub use super::advanced::{
     FogOfWarTransition, RecursiveProofCircuit, RecursiveProofLayout, StateChannelCircuit,
     StateChannelTransition, ZkStateChannel,
 };
+pub use super::batch::{hash_state_root, BatchProofContext};
 pub use super::bls12_381::{
-    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g1_mul, bls12_381_pairing_check,
+    bls12_381_aggregate_signatures, bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g1_mul,
+    bls12_381_pairing_check, bls12_381_verify_aggregated, bls12_381_verify_aggregated_same_msg,
 };
 pub use super::circuits::{
     CombatCircuit, CustomCircuit, CustomCircuitBuilder, InventoryCircuit, MovementCircuit,
