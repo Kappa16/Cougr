@@ -83,6 +83,16 @@ html, body {
   flex-direction: column;
 }
 
+/* ─── Form Elements ─────────────────────────────────────────────────────────── */
+button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.5;
+}
+
+select option {
+  background: var(--noir-bg);
+}
+
 /* ─── Typography ────────────────────────────────────────────────────────────── */
 h1, h2, h3, h4 {
   font-family: var(--font-serif);
