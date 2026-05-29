@@ -10,6 +10,9 @@ pub mod systems;
 #[cfg(feature = "zk")]
 pub mod zk;
 
+#[cfg(test)]
+mod test;
+
 use components::{Clue, PuzzleMetadata};
 use cougr_core::ops::Ownable;
 #[cfg(not(feature = "zk"))]
@@ -33,6 +36,29 @@ pub enum PuzzleError {
     InvalidClues = 4,
     PuzzleNotFound = 5,
     Unauthorized = 6,
+}
+
+/// Result of a suspect placement or removal.
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum MoveResult {
+    Ok = 0,
+    RowConflict = 1,
+    ColConflict = 2,
+    CellOccupied = 3,
+    GameAlreadySolved = 4,
+    InvalidCoordinates = 5,
+}
+
+/// Snapshot of a player's current game progress.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PlayerState {
+    pub puzzle_id: u32,
+    pub grid: Vec<u32>,
+    pub solved: bool,
+    pub moves: u32,
+    pub total_solvers: u32,
 }
 
 /// Representation of a full Murdoku puzzle (v1 — plaintext solution).
@@ -239,6 +265,52 @@ impl MurdokuContract {
         if let Some(mut puzzle) = env.storage().persistent().get::<_, Puzzle>(&puzzle_key) {
             puzzle.active = false;
             env.storage().persistent().set(&puzzle_key, &puzzle);
+        }
+    }
+
+    /// Initializes a new game session for the player.
+    pub fn start_game(env: Env, player: Address, puzzle_id: u32) {
+        player.require_auth();
+        let puzzle = Self::get_puzzle(env.clone(), puzzle_id);
+        if !puzzle.active {
+            panic_with_error!(&env, PuzzleError::Unauthorized);
+        }
+
+        let mut app = GameApp::new(&env);
+        let entity_id = app.world_mut().spawn_entity();
+        
+        let mut grid = Vec::new(&env);
+        for _ in 0..(puzzle.grid_size * puzzle.grid_size) {
+            grid.push_back(0);
+        }
+
+        app.world_mut().set_typed(&env, entity_id, &components::Board { grid });
+        app.world_mut().set_typed(&env, entity_id, &components::GameStatus { solved: false });
+        app.world_mut().set_typed(&env, entity_id, &components::MoveCount { count: 0 });
+        
+        let session_key = (Symbol::new(&env, "SESSION"), player, puzzle_id);
+        let session_key = (Symbol::new(&env, "SESSION"), puzzle_id, player);
+        app.save(&env, session_key);
+    }
+
+    /// Returns the player's current game state.
+    pub fn get_player_state(env: Env, player: Address, puzzle_id: u32) -> PlayerState {
+        let session_key = (Symbol::new(&env, "SESSION"), player.clone(), puzzle_id);
+        let session_key = (Symbol::new(&env, "SESSION"), puzzle_id, player.clone());
+        let app = GameApp::load(&env, session_key).expect("Game not started");
+        let world = app.world();
+        let entity = world.iter_entities().next().expect("No world state");
+        
+        let board: components::Board = world.get_typed(&env, entity.id()).unwrap();
+        let status: components::GameStatus = world.get_typed(&env, entity.id()).unwrap();
+        let moves: components::MoveCount = world.get_typed(&env, entity.id()).unwrap();
+
+        PlayerState {
+            puzzle_id,
+            grid: board.grid,
+            solved: status.solved,
+            moves: moves.count,
+            total_solvers: env.storage().persistent().get(&(Symbol::new(&env, "SOLVER_CNT"), puzzle_id)).unwrap_or(0),
         }
     }
 }
@@ -474,14 +546,39 @@ impl MurdokuContract {
         revoke_session(env, player, puzzle_id)
     }
 
-    pub fn place_suspect(env: Env, player: Address, puzzle_id: u32, x: u32, y: u32) {
+    pub fn place_suspect(env: Env, player: Address, puzzle_id: u32, x: u32, y: u32, _suspect_idx: u32) -> MoveResult {
+    pub fn place_suspect(env: Env, player: Address, puzzle_id: u32, x: u32, y: u32, suspect_idx: u32) -> MoveResult {
         crate::auth::require_player_auth(&env, &player, puzzle_id, symbol_short!("place_suspect"));
-        let _ = (x, y);
+        
+        let session_key = (Symbol::new(&env, "SESSION"), player.clone(), puzzle_id);
+        let mut _app = GameApp::load(&env, session_key).expect("Game not started");
+        let puzzle = Self::get_puzzle(env.clone(), puzzle_id);
+        if x >= puzzle.grid_size || y >= puzzle.grid_size {
+            return MoveResult::InvalidCoordinates;
+        }
+
+        let session_key = (Symbol::new(&env, "SESSION"), puzzle_id, player.clone());
+        let mut app = GameApp::load(&env, session_key).expect("Game not started");
+        
+        // Execution of PlacementValidationSystem, etc.
+        // Note: Real system execution would go here. For now returning Ok for bounds check.
+        MoveResult::Ok
     }
 
-    pub fn remove_suspect(env: Env, player: Address, puzzle_id: u32, x: u32, y: u32) {
+    pub fn remove_suspect(env: Env, player: Address, puzzle_id: u32, x: u32, y: u32) -> MoveResult {
         crate::auth::require_player_auth(&env, &player, puzzle_id, symbol_short!("remove_suspect"));
-        let _ = (x, y);
+        let session_key = (Symbol::new(&env, "SESSION"), player.clone(), puzzle_id);
+        let mut _app = GameApp::load(&env, session_key).expect("Game not started");
+        
+        let puzzle = Self::get_puzzle(env.clone(), puzzle_id);
+        if x >= puzzle.grid_size || y >= puzzle.grid_size {
+            return MoveResult::InvalidCoordinates;
+        }
+
+        let session_key = (Symbol::new(&env, "SESSION"), puzzle_id, player.clone());
+        let mut app = GameApp::load(&env, session_key).expect("Game not started");
+        
+        MoveResult::Ok
     }
 }
 
