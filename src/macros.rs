@@ -1,3 +1,49 @@
+/// Generate a [`SorobanGame`](crate::game::SorobanGame) implementation for a
+/// Soroban `#[contract]` struct.
+///
+/// The `$key` string literal is passed to `soroban_sdk::Symbol::new` and must
+/// be at most 32 characters, containing only alphanumeric characters and
+/// underscores.
+///
+/// # Example
+/// ```no_run
+/// use cougr_core::game::SorobanGame;
+/// use cougr_core::impl_soroban_game;
+/// use cougr_core::{impl_component, impl_component_observed};
+/// use soroban_sdk::{contract, contractimpl, contracttype, Env};
+///
+/// #[contracttype]
+/// #[derive(Clone, Debug)]
+/// pub struct Position { pub x: i32, pub y: i32 }
+/// impl_component_observed!(Position, "position", Table, { x: i32, y: i32 });
+///
+/// #[contract]
+/// pub struct MyGame;
+///
+/// impl_soroban_game!(MyGame, "world");
+///
+/// #[contractimpl]
+/// impl MyGame {
+///     pub fn spawn(env: Env) -> u32 {
+///         let mut world = MyGame::load_world(&env);
+///         let player = world.spawn_entity();
+///         world.set_typed_observed(&env, player, &Position { x: 0, y: 0 });
+///         MyGame::save_world(&env, &world);
+///         player
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! impl_soroban_game {
+    ($contract:ty, $key:literal) => {
+        impl $crate::game::SorobanGame for $contract {
+            fn world_key(env: &soroban_sdk::Env) -> soroban_sdk::Symbol {
+                soroban_sdk::Symbol::new(env, $key)
+            }
+        }
+    };
+}
+
 /// Helper macro to serialize a single field to big-endian bytes.
 #[macro_export]
 #[doc(hidden)]

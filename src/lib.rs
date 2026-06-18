@@ -62,6 +62,7 @@ pub mod archetype_world;
 mod change_tracker;
 pub mod commands;
 pub mod component;
+pub mod game;
 #[cfg(feature = "debug")]
 #[doc(hidden)]
 pub mod debug;
@@ -145,6 +146,7 @@ pub mod prelude {
         SimpleQueryBuilder, SimpleWorld, WorldBackend,
     };
     pub use crate::ecs_events::ObservableComponentTrait;
+    pub use crate::game::SorobanGame;
     pub use crate::rich_component::RichComponentTrait;
     pub use crate::system::SystemContext;
 }

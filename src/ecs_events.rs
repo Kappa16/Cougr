@@ -29,6 +29,22 @@ pub struct ComponentRemovedEvent {
     pub entity_id: u32,
 }
 
+/// Soroban event emitted when a rich component is set on an entity via
+/// [`SimpleWorld::set_rich_observed`](crate::simple_world::SimpleWorld::set_rich_observed).
+///
+/// Topics: `("COUGR", "rich", component_type_symbol)`
+/// Data: `{ "entity_id": u32 }`
+///
+/// Rich components are stored using Soroban's XDR codec. The full value is
+/// not embedded in the event — off-chain indexers should query the contract's
+/// instance storage for the updated value after receiving this notification.
+#[contractevent(topics = ["COUGR", "rich"])]
+pub struct RichComponentChangedEvent {
+    #[topic]
+    pub component_type: Symbol,
+    pub entity_id: u32,
+}
+
 /// Extension trait for [`ComponentTrait`] types that emit structured Soroban
 /// events on mutation.
 ///
