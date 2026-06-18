@@ -5,21 +5,28 @@ High-level overview of how Cougr is organized. For usage, see [README.md](README
 ## Layers
 
 ```
-┌─────────────────────────────────────────────┐
-│               app::GameApp                   │  Default runtime surface
-├───────────┬───────────────┬─────────────────┤
-│  ECS      │  Accounts     │  Standards      │  ZK Proofs
-├───────────┼───────────────┼─────────────────┼─────────────────┤
-│  soroban-sdk 25.1.0  (no_std, WASM)         │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│           game::SorobanGame  (contract integration)          │  Contract layer
+├──────────────────────────────────────────────────────────────┤
+│               app::GameApp                                   │  Default runtime surface
+├───────────┬───────────────┬──────────────────────────────────┤
+│  ECS      │  Accounts     │  Standards      │  ZK Proofs     │
+├───────────┴───────────────┴─────────────────┴────────────────┤
+│  soroban-sdk 25.1.0  (no_std, WASM)                          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**GameApp** (`src/plugin/mod.rs`) is the default onboarding layer. It owns a `SimpleWorld`,
-the scheduler, plugin registration, and runtime resources in one place.
+**game::SorobanGame** (`src/game.rs`) bridges the ECS and Soroban contract models.
+The `SorobanGame` trait provides `load_world` and `save_world` as default methods,
+eliminating repetitive storage-key boilerplate from contract entrypoints. Wire up
+once with `impl_soroban_game!(MyContract, "key")`.
 
-**GameWorld** (`src/game_world.rs`) remains available as a higher-level Beta integration
-wrapper for combining ECS, auth, and proof submission, but it is not the primary
-learning path for new users.
+The companion helpers `SimpleWorld::load_from_instance` and `save_to_instance`
+are the underlying primitives when you want finer control.
+
+**GameApp** (`src/plugin/mod.rs`) is the default onboarding layer for complex
+games. It owns a `SimpleWorld`, the scheduler, plugin registration, and runtime
+resources in one place.
 
 ## ECS
 
@@ -45,7 +52,17 @@ Supporting systems:
 
 ### Component definition
 
-The `impl_component!` macro generates `ComponentTrait` (serialize/deserialize/type symbol) from a struct definition. Supported field types: `i32`, `u32`, `i64`, `u64`, `i128`, `u128`, `u8`, `bool`, `bytes32`.
+Three macros cover every component case:
+
+| Macro | When to use |
+|---|---|
+| `impl_component!` | Fixed-size primitives (`i32`, `u32`, `u64`, `u128`, `u8`, `bool`, `bytes32`) |
+| `impl_component_observed!` | Same as above, plus structured Soroban events on every `set` |
+| `impl_rich_component!` | Complex types via XDR codec: `Address`, `Vec`, `String`, `Option`, nested structs |
+
+`impl_rich_component!` requires `#[contracttype]` on the struct. The XDR serialisation is handled entirely by the Soroban SDK — no manual `serialize`/`deserialize` implementation is needed.
+
+Rich components are stored in Soroban instance storage (not the ECS `Map`) but share the same entity ID space.
 
 ## ZK Proofs (`src/zk/`)
 
