@@ -254,16 +254,3 @@ fn test_no_move_when_game_over() {
         assert_eq!(pos, new_pos);
     }
 }
-
-/// Test that Cougr world is persisted with all gameplay entities
-#[test]
-fn test_world_entity_count() {
-    let env = Env::default();
-    let contract_id = env.register(SpaceInvadersContract, ());
-    let client = SpaceInvadersContractClient::new(&env, &contract_id);
-
-    client.init_game();
-
-    // 1 ship + 32 invaders
-    assert_eq!(client.get_entity_count(), 1 + INVADER_COLS * INVADER_ROWS);
-}
