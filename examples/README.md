@@ -27,6 +27,7 @@ stellar contract build
 
 | Example | Category | Focus |
 |---|---|---|
+| `spawn_and_move` | **Starter / canonical** | Complete idiomatic Cougr pattern: `SorobanGame` + `impl_component_observed!` + typed ECS |
 | `angry_birds` | Physics-inspired arcade | Projectile logic and destructible-state style gameplay |
 | `arkanoid` | Arcade | Paddle, collision, and brick lifecycle management |
 | `asteroids` | Arcade | Entity-heavy movement, collisions, and spawning |
@@ -55,11 +56,14 @@ Use examples by pattern, not only by genre:
 
 | If you need to study | Good starting points |
 |---|---|
-| Basic ECS structure | `pong`, `snake`, `tetris` |
+| **First-time onboarding** | `spawn_and_move` |
+| Basic ECS structure | `spawn_and_move`, `pong`, `snake`, `tetris` |
+| Rich components (`Address`, `Vec`) | `tic_tac_toe`, `trading_card_game` |
 | Hidden state or commit-reveal | `battleship`, `rock_paper_scissors` |
 | Turn-based logic | `tic_tac_toe`, `pokemon_mini`, `chess` |
 | Account abstraction patterns | `guild_arena` |
 | Larger multi-entity loops | `asteroids`, `space_invaders`, `pac_man` |
+| ZK proof / fog-of-war | `treasure_hunt`, `proof_of_hunt` |
 
 ## Preferred Runtime Shape
 
@@ -78,6 +82,8 @@ them as the default onboarding path.
 
 The maintained reference architectures for Cougr should be read in this order:
 
+- `spawn_and_move`: **start here** — canonical onboarding example showing the full modern Cougr pattern
+- `tic_tac_toe`: turn-based game with rich components (`impl_rich_component!`) for `Address` and `Vec` fields
 - `snake`: canonical arcade loop and `GameApp` tick model
 - `battleship`: canonical hidden-information / commit-reveal flow using `privacy::stable` Merkle primitives
 - `guild_arena`: canonical account recovery and multi-device authorization flow
