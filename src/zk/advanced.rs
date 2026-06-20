@@ -15,7 +15,10 @@ use soroban_sdk::{contracttype, BytesN, Env};
 
 use super::error::ZKError;
 use super::merkle::tree::MerkleTree;
-use super::traits::{bytes32_to_scalar, i32_to_scalar, u32_to_scalar, u64_to_scalar, GameCircuit};
+use super::traits::{
+    bytes32_to_scalar, field_i32_to_scalar, field_u32_to_scalar, u32_to_scalar, u64_to_scalar,
+    GameCircuit,
+};
 use super::types::{Groth16Proof, Scalar, VerificationKey};
 
 /// Snapshot of a player's currently visible fog-of-war state.
@@ -73,6 +76,9 @@ pub fn apply_fog_of_war_transition(
 }
 
 /// Experimental circuit contract for fog-of-war exploration proofs.
+///
+/// Prefer [`crate::circuits::fog_of_war`] for new integrations — it returns a
+/// [`crate::circuits::GameCircuitSpec`] with the same verification path.
 pub struct FogOfWarCircuit {
     pub vk: VerificationKey,
     pub max_visibility_radius: u32,
@@ -113,11 +119,11 @@ impl FogOfWarCircuit {
             bytes32_to_scalar(&snapshot.map_root),
             bytes32_to_scalar(&transition.prior_explored_root),
             bytes32_to_scalar(&transition.next_explored_root),
-            i32_to_scalar(env, snapshot.origin_x),
-            i32_to_scalar(env, snapshot.origin_y),
-            i32_to_scalar(env, transition.tile_x),
-            i32_to_scalar(env, transition.tile_y),
-            u32_to_scalar(env, snapshot.visibility_radius),
+            field_i32_to_scalar(env, snapshot.origin_x),
+            field_i32_to_scalar(env, snapshot.origin_y),
+            field_i32_to_scalar(env, transition.tile_x),
+            field_i32_to_scalar(env, transition.tile_y),
+            field_u32_to_scalar(env, snapshot.visibility_radius),
         ]);
 
         self.verify_with_inputs(env, proof, &public_inputs)

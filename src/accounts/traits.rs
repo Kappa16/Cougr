@@ -48,4 +48,12 @@ pub trait SessionKeyProvider: CougrAccount {
 
     /// Revoke an existing session key.
     fn revoke_session(&mut self, env: &Env, key_id: &BytesN<32>) -> Result<(), AccountError>;
+
+    /// Extend the expiry of an existing session key.
+    fn renew_session(
+        &mut self,
+        env: &Env,
+        key_id: &BytesN<32>,
+        new_expires_at: u64,
+    ) -> Result<SessionKey, AccountError>;
 }

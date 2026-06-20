@@ -1,3 +1,12 @@
+[workspace]
+members = [
+    ".",
+    "internal/cougr-core-circuits",
+    "internal/cougr-core-session",
+    "internal/cougr-core-test",
+]
+resolver = "2"
+
 [package]
 name = "cougr-core"
 version = "1.1.0"

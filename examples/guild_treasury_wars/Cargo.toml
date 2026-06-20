@@ -20,3 +20,4 @@ opt-level = "z"
 overflow-checks = true
 lto = true
 codegen-units = 1 
+[workspace]

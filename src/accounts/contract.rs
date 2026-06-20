@@ -104,6 +104,15 @@ impl SessionKeyProvider for ContractAccount {
         }
         Ok(())
     }
+
+    fn renew_session(
+        &mut self,
+        env: &Env,
+        key_id: &BytesN<32>,
+        new_expires_at: u64,
+    ) -> Result<SessionKey, AccountError> {
+        SessionStorage::renew_session(env, &self.address, key_id, new_expires_at)
+    }
 }
 
 fn session_key_id(env: &Env, existing_sessions: u32, scope: &SessionScope) -> BytesN<32> {

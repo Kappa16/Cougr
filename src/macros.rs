@@ -6,11 +6,12 @@
 /// underscores.
 ///
 /// # Example
-/// ```no_run
+/// ```
 /// use cougr_core::game::SorobanGame;
 /// use cougr_core::impl_soroban_game;
-/// use cougr_core::{impl_component, impl_component_observed};
-/// use soroban_sdk::{contract, contractimpl, contracttype, Env};
+/// use cougr_core::impl_component_observed;
+/// use soroban_sdk::{contract, contracttype, Env};
+/// use soroban_sdk::testutils::Register as _;
 ///
 /// #[contracttype]
 /// #[derive(Clone, Debug)]
@@ -22,16 +23,17 @@
 ///
 /// impl_soroban_game!(MyGame, "world");
 ///
-/// #[contractimpl]
-/// impl MyGame {
-///     pub fn spawn(env: Env) -> u32 {
-///         let mut world = MyGame::load_world(&env);
-///         let player = world.spawn_entity();
-///         world.set_typed_observed(&env, player, &Position { x: 0, y: 0 });
-///         MyGame::save_world(&env, &world);
-///         player
-///     }
-/// }
+/// # fn main() {
+/// # let env = Env::default();
+/// # let contract_id = env.register(MyGame, ());
+/// # env.as_contract(&contract_id, || {
+/// let mut world = MyGame::load_world(&env);
+/// let player = world.spawn_entity();
+/// world.set_typed_observed(&env, player, &Position { x: 0, y: 0 });
+/// MyGame::save_world(&env, &world);
+/// # assert!(player > 0);
+/// # });
+/// # }
 /// ```
 #[macro_export]
 macro_rules! impl_soroban_game {

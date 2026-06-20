@@ -171,6 +171,38 @@ impl SessionStorage {
         Ok(updated)
     }
 
+    /// Extend the expiry timestamp of an existing session key.
+    pub fn renew_session(
+        env: &Env,
+        account: &Address,
+        key_id: &BytesN<32>,
+        new_expires_at: u64,
+    ) -> Result<SessionKey, AccountError> {
+        let keys = Self::load_all(env, account);
+        let mut new_keys: Vec<SessionKey> = Vec::new(env);
+        let mut updated: Option<SessionKey> = None;
+
+        for i in 0..keys.len() {
+            if let Some(mut k) = keys.get(i) {
+                if &k.key_id == key_id {
+                    if new_expires_at <= env.ledger().timestamp() {
+                        return Err(AccountError::InvalidScope);
+                    }
+                    k.scope.expires_at = new_expires_at;
+                    updated = Some(k.clone());
+                    new_keys.push_back(k);
+                } else {
+                    new_keys.push_back(k);
+                }
+            }
+        }
+
+        let updated = updated.ok_or(AccountError::SessionRevoked)?;
+        let storage_key = Self::storage_key(env, account);
+        env.storage().persistent().set(&storage_key, &new_keys);
+        Ok(updated)
+    }
+
     /// Remove all expired session keys for an account.
     /// Returns the number of keys removed.
     pub fn cleanup_expired(env: &Env, account: &Address) -> u32 {
@@ -364,6 +396,20 @@ mod tests {
 
             let remaining = SessionStorage::load_all(&env, &addr);
             assert_eq!(remaining.len(), 1);
+        });
+    }
+
+    #[test]
+    fn test_renew_session_updates_expiry() {
+        let env = Env::default();
+        let contract_id = env.register(TestContract, ());
+        let addr = Address::generate(&env);
+
+        env.as_contract(&contract_id, || {
+            let key = make_session_key(&env, 3, 1_000);
+            SessionStorage::store(&env, &addr, &key);
+            let renewed = SessionStorage::renew_session(&env, &addr, &key.key_id, 9_000).unwrap();
+            assert_eq!(renewed.scope.expires_at, 9_000);
         });
     }
 

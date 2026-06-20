@@ -18,6 +18,15 @@
 - **`spawn_and_move` example** — canonical Cougr starter game demonstrating the complete
   idiomatic pattern: `impl_component_observed!` + `SorobanGame` + typed ECS access
 - **`SorobanGame` re-exported from `prelude`** — import from `cougr_core::prelude::*`
+- **`cougr_core::circuits`** — four pre-built ZK game builders (hidden cards, fog of war,
+  fair dice, sealed bid) with pipeline-embedded verification keys
+- **`cougr_core::session`** — `SessionManager`, `SessionStatus`, and `ActiveSession` (Beta)
+- **`cougr_core::test`** — `GameHarness`, `Scenario`, and `ReplayLog` sandbox behind the
+  `testutils` feature
+- **Circom pipeline** — `internal/cougr-core-circuits` with CI workflow and on-chain Groth16
+  proof verification using real VKs
+- **ZK examples** — `hidden_hand`, `fog_explorer`, `dice_duel`, and `blind_auction`
+- **Workspace subcrates** — `internal/cougr-core-{circuits,session,test}` per ADR 0007
 
 ### Changed
 
@@ -32,6 +41,9 @@
 - `SimpleWorld::load_from_instance` / `save_to_instance` are **Stable**
 - `set_rich_observed` / `remove_rich_observed` are **Stable**
 - `RichComponentChangedEvent` is **Stable**
+- `cougr_core::session` is **Beta**
+- `cougr_core::circuits` and embedded test VKs are **Experimental**
+- `cougr_core::test` is **Experimental** (`testutils` only)
 
 ---
 

@@ -1,6 +1,6 @@
 use soroban_sdk::Env;
 
-use super::crypto::{bn254_g1_add, bn254_g1_mul, bn254_pairing_check};
+use super::crypto::{bn254_g1_add, bn254_g1_mul, bn254_g1_neg, bn254_pairing_check};
 use super::error::ZKError;
 use super::types::{Groth16Proof, Scalar, VerificationKey};
 
@@ -64,27 +64,10 @@ pub fn verify_groth16(
         vk_x = bn254_g1_add(env, &vk_x, &term)?;
     }
 
-    // Pairing check:
-    // e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
-    //
-    // Implemented as: pairing_check([-A, alpha, vk_x, C], [B, beta, gamma, delta])
-    // where -A is the negation of A on G1.
-    //
-    // For BN254 G1 negation, we negate the y-coordinate.
-    // However, the pairing_check API handles this via the equation form.
-    //
-    // Standard form: check that e(A, B) == e(alpha, beta) * e(vk_x, gamma) * e(C, delta)
-    // Rearranged:    e(A, B) * e(-alpha, beta) * e(-vk_x, gamma) * e(-C, delta) == 1
-    //
-    // The soroban pairing_check verifies: product of e(g1[i], g2[i]) == 1
-    // So we pass: [A, neg_alpha, neg_vk_x, neg_C], [B, beta, gamma, delta]
-    //
-    // Since we don't have a direct G1 negation function exposed, we use the
-    // equivalent formulation: check passes if the equation balances.
-    //
-    // For now, we perform the pairing check with all positive points and
-    // let the caller ensure proper proof structure.
-    let g1_points = [proof.a.clone(), vk.alpha.clone(), vk_x, proof.c.clone()];
+    // Pairing check (snarkjs-compatible):
+    //   e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
+    let neg_a = bn254_g1_neg(env, &proof.a);
+    let g1_points = [neg_a, vk.alpha.clone(), vk_x, proof.c.clone()];
     let g2_points = [
         proof.b.clone(),
         vk.beta.clone(),

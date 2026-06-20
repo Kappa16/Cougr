@@ -62,6 +62,7 @@ pub const WEST: u32 = 3;  // −x
 // ─── Contract ────────────────────────────────────────────────────────────────
 
 #[contract]
+#[derive(Clone)]
 pub struct SpawnAndMove;
 
 impl_soroban_game!(SpawnAndMove, "world");
@@ -154,5 +155,7 @@ impl SpawnAndMove {
     }
 }
 
+#[cfg(test)]
+mod sandbox_tests;
 #[cfg(test)]
 mod test;

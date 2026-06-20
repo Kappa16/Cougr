@@ -10,30 +10,27 @@ use soroban_sdk::{Env, Symbol};
 /// the contract implementation.
 ///
 /// # Example
-/// ```no_run
+/// ```
 /// use cougr_core::game::SorobanGame;
 /// use cougr_core::impl_soroban_game;
-/// use soroban_sdk::{contract, contractimpl, Env};
+/// use soroban_sdk::{contract, Env};
+/// use soroban_sdk::testutils::Register as _;
 ///
 /// #[contract]
 /// pub struct MyGame;
 ///
 /// impl_soroban_game!(MyGame, "world");
 ///
-/// #[contractimpl]
-/// impl MyGame {
-///     pub fn entity_count(env: Env) -> u32 {
-///         let world = MyGame::load_world(&env);
-///         world.next_entity_id().saturating_sub(1)
-///     }
-///
-///     pub fn spawn(env: Env) -> u32 {
-///         let mut world = MyGame::load_world(&env);
-///         let id = world.spawn_entity();
-///         MyGame::save_world(&env, &world);
-///         id
-///     }
-/// }
+/// # fn main() {
+/// # let env = Env::default();
+/// # let contract_id = env.register(MyGame, ());
+/// # env.as_contract(&contract_id, || {
+/// let mut world = MyGame::load_world(&env);
+/// let id = world.spawn_entity();
+/// MyGame::save_world(&env, &world);
+/// # assert!(id > 0);
+/// # });
+/// # }
 /// ```
 pub trait SorobanGame {
     /// The Soroban `Symbol` key used to store the world in instance storage.

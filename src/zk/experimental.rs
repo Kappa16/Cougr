@@ -35,6 +35,7 @@ pub use super::systems::{
     encode_commit_reveal, encode_verified_marker, verify_proofs_system, verify_proofs_with,
 };
 pub use super::traits::{
-    bytes32_to_scalar, i32_to_scalar, u32_to_scalar, u64_to_scalar, GameCircuit,
+    bytes32_to_scalar, field_i32_to_scalar, field_u32_to_scalar, i32_to_scalar, u32_to_scalar,
+    u64_to_scalar, GameCircuit,
 };
 pub use super::types::{Groth16Proof, VerificationKey};

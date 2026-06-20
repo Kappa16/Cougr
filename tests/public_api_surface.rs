@@ -324,3 +324,31 @@ fn ops_namespace_mirrors_standards_surface() {
     let _guard = cougr_core::ops::ExecutionGuard::new(symbol_short!("exec"));
     let _ownable = cougr_core::ops::Ownable::new(symbol_short!("own"));
 }
+
+#[test]
+fn session_module_exposes_manager_and_status() {
+    assert_eq!(cougr_core::session::RENEWAL_HINT_SECONDS, 300);
+    let _ = cougr_core::session::SessionManager::cleanup_expired;
+}
+
+#[test]
+fn circuits_module_exposes_game_builders() {
+    let env = Env::default();
+    let _ = cougr_core::circuits::hidden_cards(&env, 52, 5).unwrap();
+    let _ = cougr_core::circuits::fog_of_war(&env, 32, 32, 3).unwrap();
+    let seed = BytesN::from_array(&env, &[1u8; 32]);
+    let _ = cougr_core::circuits::fair_dice(&env, 6, &seed).unwrap();
+    let _ = cougr_core::circuits::sealed_bid(&env, 1000).unwrap();
+    assert_eq!(cougr_core::circuits::MODULE_VERSION, "0.1.0-circuits");
+}
+
+#[test]
+fn competitive_layers_expose_version_markers() {
+    assert_eq!(cougr_core::session::MODULE_VERSION, "0.1.0-session");
+}
+
+#[test]
+#[cfg(feature = "testutils")]
+fn test_sandbox_module_available_with_testutils() {
+    assert_eq!(cougr_core::test::MODULE_VERSION, "0.1.0-sandbox");
+}

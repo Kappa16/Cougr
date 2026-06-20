@@ -20,3 +20,5 @@ overflow-checks = true
 
 [features]
 testutils = ["soroban-sdk/testutils"]
+
+[workspace]

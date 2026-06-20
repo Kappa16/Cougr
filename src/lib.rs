@@ -12,6 +12,9 @@ The public API is intentionally split into:
 - `accounts` for account abstraction and session flows
 - `zk::stable` for stable privacy primitives
 - `zk::experimental` for fast-moving proof-verification APIs
+- `circuits` for pre-built ZK game circuit builders (Experimental)
+- `session` for end-to-end session UX (`SessionManager`, `SessionStatus`; Beta)
+- `test` for the on-chain game sandbox (`GameHarness`, `Scenario`, `WorldFixture`; `testutils` feature)
 
 # Golden Path
 
@@ -60,9 +63,9 @@ pub mod macros;
 pub mod accounts;
 pub mod archetype_world;
 mod change_tracker;
+pub mod circuits;
 pub mod commands;
 pub mod component;
-pub mod game;
 #[cfg(feature = "debug")]
 #[doc(hidden)]
 pub mod debug;
@@ -70,6 +73,7 @@ pub mod ecs;
 pub mod ecs_events;
 pub mod error;
 pub mod event;
+pub mod game;
 mod hooks;
 mod incremental;
 mod observers;
@@ -78,10 +82,14 @@ pub mod query;
 pub mod resource;
 pub mod rich_component;
 pub mod scheduler;
+pub mod session;
 pub mod simple_world;
 pub mod standards;
 mod system;
 pub mod zk;
+
+#[cfg(feature = "testutils")]
+pub mod test;
 
 // Root-level golden path re-exports.
 pub use archetype_world::{ArchetypeQuery, ArchetypeQueryBuilder, ArchetypeWorld};
