@@ -104,6 +104,110 @@ pub fn bls12_381_pairing_check(
     Ok(env.crypto().bls12_381().pairing_check(vp1, vp2))
 }
 
+/// Aggregate N BLS12-381 G1 signatures into one via iterative G1 add.
+///
+/// Returns `Err(ZKError::InvalidInput)` when the slice is empty.
+pub fn bls12_381_aggregate_signatures(
+    env: &Env,
+    signatures: &[Bls12381G1Point],
+) -> Result<Bls12381G1Point, ZKError> {
+    if signatures.is_empty() {
+        return Err(ZKError::InvalidInput);
+    }
+    let mut acc = signatures[0].clone();
+    for sig in &signatures[1..] {
+        acc = bls12_381_g1_add(env, &acc, sig)?;
+    }
+    Ok(acc)
+}
+
+/// Verify an aggregated BLS12-381 signature against N `(message_hash, pubkey)` pairs.
+///
+/// Checks:
+/// ```text
+/// e(sig_agg, -g2_generator) · Π e(H(msg_i), pk_i) == 1
+/// ```
+///
+/// Pass the **negated** BLS12-381 G2 generator as `g2_generator_neg`. Its
+/// uncompressed bytes (x_c0 ‖ x_c1 ‖ y_c0 ‖ y_c1) are defined in the
+/// BLS12-381 IETF specification.
+///
+/// Returns `Err(ZKError::InvalidInput)` when lengths are mismatched or empty.
+pub fn bls12_381_verify_aggregated(
+    env: &Env,
+    aggregated_sig: &Bls12381G1Point,
+    g2_generator_neg: &Bls12381G2Point,
+    messages_hashed: &[Bls12381G1Point],
+    pubkeys: &[Bls12381G2Point],
+) -> Result<bool, ZKError> {
+    if messages_hashed.len() != pubkeys.len() {
+        return Err(ZKError::InvalidInput);
+    }
+    if messages_hashed.is_empty() {
+        return Err(ZKError::InvalidInput);
+    }
+
+    let mut g1: alloc::vec::Vec<Bls12381G1Point> = alloc::vec::Vec::new();
+    let mut g2: alloc::vec::Vec<Bls12381G2Point> = alloc::vec::Vec::new();
+
+    // Pair (sig_agg, -g2_gen) first so that
+    // e(sig_agg, -g2_gen) · Π e(H(msg_i), pk_i) == 1
+    g1.push(aggregated_sig.clone());
+    g2.push(g2_generator_neg.clone());
+
+    for (msg, pk) in messages_hashed.iter().zip(pubkeys.iter()) {
+        g1.push(msg.clone());
+        g2.push(pk.clone());
+    }
+
+    bls12_381_pairing_check(env, &g1, &g2)
+}
+
+/// Optimized aggregation verification for the common case where all signers
+/// sign the **same** message.
+///
+/// Aggregates pubkeys with iterative G2 add, then performs a 2-pairing check:
+/// ```text
+/// e(sig_agg, -g2_generator) · e(H(msg), pk_agg) == 1
+/// ```
+///
+/// Pass the **negated** BLS12-381 G2 generator as `g2_generator_neg`.
+///
+/// Returns `Err(ZKError::InvalidInput)` when `pubkeys` is empty.
+pub fn bls12_381_verify_aggregated_same_msg(
+    env: &Env,
+    aggregated_sig: &Bls12381G1Point,
+    g2_generator_neg: &Bls12381G2Point,
+    message_hashed: &Bls12381G1Point,
+    pubkeys: &[Bls12381G2Point],
+) -> Result<bool, ZKError> {
+    if pubkeys.is_empty() {
+        return Err(ZKError::InvalidInput);
+    }
+
+    let pk_agg = aggregate_g2_points(env, pubkeys)?;
+
+    bls12_381_pairing_check(
+        env,
+        &[aggregated_sig.clone(), message_hashed.clone()],
+        &[g2_generator_neg.clone(), pk_agg],
+    )
+}
+
+/// Aggregate BLS12-381 G2 points via iterative G2 add.
+fn aggregate_g2_points(env: &Env, points: &[Bls12381G2Point]) -> Result<Bls12381G2Point, ZKError> {
+    let mut acc = points[0].clone();
+    for p in &points[1..] {
+        let a = Bls12381G2Affine::from_bytes(acc.bytes.clone());
+        let b = Bls12381G2Affine::from_bytes(p.bytes.clone());
+        let r = env.crypto().bls12_381().g2_add(&a, &b);
+        acc = Bls12381G2Point {
+            bytes: r.to_bytes(),
+        };
+    }
+    Ok(acc)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

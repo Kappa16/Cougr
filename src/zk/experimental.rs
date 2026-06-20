@@ -8,8 +8,10 @@ pub use super::advanced::{
     FogOfWarTransition, RecursiveProofCircuit, RecursiveProofLayout, StateChannelCircuit,
     StateChannelTransition, ZkStateChannel,
 };
+pub use super::batch::{hash_state_root, BatchProofContext};
 pub use super::bls12_381::{
-    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g1_mul, bls12_381_pairing_check,
+    bls12_381_aggregate_signatures, bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g1_mul,
+    bls12_381_pairing_check, bls12_381_verify_aggregated, bls12_381_verify_aggregated_same_msg,
 };
 pub use super::circuits::{
     CombatCircuit, CustomCircuit, CustomCircuitBuilder, InventoryCircuit, MovementCircuit,
@@ -33,6 +35,7 @@ pub use super::systems::{
     encode_commit_reveal, encode_verified_marker, verify_proofs_system, verify_proofs_with,
 };
 pub use super::traits::{
-    bytes32_to_scalar, i32_to_scalar, u32_to_scalar, u64_to_scalar, GameCircuit,
+    bytes32_to_scalar, field_i32_to_scalar, field_u32_to_scalar, i32_to_scalar, u32_to_scalar,
+    u64_to_scalar, GameCircuit,
 };
 pub use super::types::{Groth16Proof, VerificationKey};

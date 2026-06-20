@@ -1,3 +1,51 @@
+/// Generate a [`SorobanGame`](crate::game::SorobanGame) implementation for a
+/// Soroban `#[contract]` struct.
+///
+/// The `$key` string literal is passed to `soroban_sdk::Symbol::new` and must
+/// be at most 32 characters, containing only alphanumeric characters and
+/// underscores.
+///
+/// # Example
+/// ```
+/// use cougr_core::game::SorobanGame;
+/// use cougr_core::impl_soroban_game;
+/// use cougr_core::impl_component_observed;
+/// use soroban_sdk::{contract, contracttype, Env};
+/// use soroban_sdk::testutils::Register as _;
+///
+/// #[contracttype]
+/// #[derive(Clone, Debug)]
+/// pub struct Position { pub x: i32, pub y: i32 }
+/// impl_component_observed!(Position, "position", Table, { x: i32, y: i32 });
+///
+/// #[contract]
+/// pub struct MyGame;
+///
+/// impl_soroban_game!(MyGame, "world");
+///
+/// # fn main() {
+/// # let env = Env::default();
+/// # let contract_id = env.register(MyGame, ());
+/// # env.as_contract(&contract_id, || {
+/// let mut world = MyGame::load_world(&env);
+/// let player = world.spawn_entity();
+/// world.set_typed_observed(&env, player, &Position { x: 0, y: 0 });
+/// MyGame::save_world(&env, &world);
+/// # assert!(player > 0);
+/// # });
+/// # }
+/// ```
+#[macro_export]
+macro_rules! impl_soroban_game {
+    ($contract:ty, $key:literal) => {
+        impl $crate::game::SorobanGame for $contract {
+            fn world_key(env: &soroban_sdk::Env) -> soroban_sdk::Symbol {
+                soroban_sdk::Symbol::new(env, $key)
+            }
+        }
+    };
+}
+
 /// Helper macro to serialize a single field to big-endian bytes.
 #[macro_export]
 #[doc(hidden)]
@@ -271,6 +319,103 @@ macro_rules! impl_marker_component {
 
             fn default_storage() -> $crate::component::ComponentStorage {
                 $crate::component::ComponentStorage::$storage
+            }
+        }
+    };
+}
+
+/// Implement [`RichComponentTrait`] for a struct.
+///
+/// The struct must derive `#[contracttype]`, which provides XDR serialization
+/// for free. This macro only adds the `component_type()` name lookup.
+///
+/// Unlike [`impl_component!`], the component name is not limited to 9
+/// characters.
+///
+/// # Example
+/// ```no_run
+/// use cougr_core::impl_rich_component;
+/// use soroban_sdk::{contracttype, String, Vec};
+///
+/// #[contracttype]
+/// #[derive(Clone)]
+/// pub struct Inventory {
+///     pub items: Vec<soroban_sdk::Bytes>,
+///     pub capacity: u32,
+/// }
+///
+/// impl_rich_component!(Inventory, "inventory");
+/// ```
+///
+/// [`RichComponentTrait`]: crate::rich_component::RichComponentTrait
+#[macro_export]
+macro_rules! impl_rich_component {
+    ($struct_name:ident, $name:expr) => {
+        impl $crate::rich_component::RichComponentTrait for $struct_name {
+            fn component_type(env: &soroban_sdk::Env) -> soroban_sdk::Symbol {
+                soroban_sdk::Symbol::new(env, $name)
+            }
+        }
+    };
+}
+
+/// Implement both [`ComponentTrait`] and [`ObservableComponentTrait`] for a
+/// struct, emitting structured Soroban events on every `set` and `del`
+/// operation.
+///
+/// The struct must derive `#[contracttype]` so that Soroban can XDR-encode it
+/// as event data.
+///
+/// Events are published with topics:
+/// ```text
+/// (COUGR, set|del, <component_symbol>)
+/// ```
+///
+/// # Example
+/// ```no_run
+/// use cougr_core::impl_component_observed;
+/// use soroban_sdk::contracttype;
+///
+/// #[contracttype]
+/// #[derive(Clone, Debug)]
+/// pub struct Health {
+///     pub current: u32,
+///     pub max: u32,
+/// }
+///
+/// impl_component_observed!(Health, "health", Table, { current: u32, max: u32 });
+/// ```
+///
+/// [`ComponentTrait`]: crate::component::ComponentTrait
+/// [`ObservableComponentTrait`]: crate::ecs_events::ObservableComponentTrait
+#[macro_export]
+macro_rules! impl_component_observed {
+    ($struct_name:ident, $symbol:expr, $storage:ident, { $( $field:ident : $ftype:tt ),* $(,)? }) => {
+        $crate::impl_component!($struct_name, $symbol, $storage, { $( $field : $ftype ),* });
+
+        impl $crate::ecs_events::ObservableComponentTrait for $struct_name {
+            fn emit_set_event(
+                env: &soroban_sdk::Env,
+                entity_id: $crate::simple_world::EntityId,
+                data: &soroban_sdk::Bytes,
+            ) {
+                $crate::ecs_events::ComponentSetEvent {
+                    component_type: soroban_sdk::Symbol::new(env, $symbol),
+                    entity_id,
+                    data: data.clone(),
+                }
+                .publish(env);
+            }
+
+            fn emit_remove_event(
+                env: &soroban_sdk::Env,
+                entity_id: $crate::simple_world::EntityId,
+            ) {
+                $crate::ecs_events::ComponentRemovedEvent {
+                    component_type: soroban_sdk::Symbol::new(env, $symbol),
+                    entity_id,
+                }
+                .publish(env);
             }
         }
     };

@@ -242,3 +242,203 @@ fn test_multiple_commit_reveals_different_entities() {
     assert!(world.has_component(p1, &cr_sym));
     assert!(world.has_component(p2, &cr_sym));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase C — ZK Accessible
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_verification_key_from_raw_bytes_roundtrip() {
+    use cougr_core::zk::experimental::VerificationKey;
+    let env = Env::default();
+
+    let alpha: [u8; 64] = {
+        let mut b = [0u8; 64];
+        b[0] = 0x01;
+        b[63] = 0x02;
+        b
+    };
+    let beta: [u8; 128] = {
+        let mut b = [0u8; 128];
+        b[0] = 0x03;
+        b[127] = 0x04;
+        b
+    };
+    let gamma: [u8; 128] = [0x05u8; 128];
+    let delta: [u8; 128] = [0x06u8; 128];
+    let ic0: [u8; 64] = [0x07u8; 64];
+    let ic1: [u8; 64] = [0x08u8; 64];
+    let ic: &[[u8; 64]] = &[ic0, ic1];
+
+    let vk = VerificationKey::from_raw_bytes(&env, &alpha, &beta, &gamma, &delta, ic);
+
+    assert_eq!(vk.ic.len(), 2);
+    assert_eq!(vk.alpha.bytes.get(0), Some(0x01u8));
+    assert_eq!(vk.alpha.bytes.get(63), Some(0x02u8));
+    assert_eq!(vk.beta.bytes.get(0), Some(0x03u8));
+    assert_eq!(vk.beta.bytes.get(127), Some(0x04u8));
+    assert_eq!(vk.ic.get(0).unwrap().bytes.get(0), Some(0x07u8));
+    assert_eq!(vk.ic.get(1).unwrap().bytes.get(0), Some(0x08u8));
+}
+
+#[test]
+fn test_groth16_proof_from_raw_bytes_roundtrip() {
+    use cougr_core::zk::experimental::Groth16Proof;
+    let env = Env::default();
+
+    let a: [u8; 64] = {
+        let mut b = [0u8; 64];
+        b[31] = 0xAA;
+        b
+    };
+    let b: [u8; 128] = {
+        let mut arr = [0u8; 128];
+        arr[0] = 0xBB;
+        arr
+    };
+    let c: [u8; 64] = [0xCCu8; 64];
+
+    let proof = Groth16Proof::from_raw_bytes(&env, &a, &b, &c);
+
+    assert_eq!(proof.a.bytes.get(31), Some(0xAAu8));
+    assert_eq!(proof.b.bytes.get(0), Some(0xBBu8));
+    assert_eq!(proof.c.bytes.get(0), Some(0xCCu8));
+    assert_eq!(proof.a.bytes.len(), 64);
+    assert_eq!(proof.b.bytes.len(), 128);
+    assert_eq!(proof.c.bytes.len(), 64);
+}
+
+#[test]
+fn test_verification_key_from_raw_bytes_empty_ic() {
+    use cougr_core::zk::experimental::VerificationKey;
+    let env = Env::default();
+
+    let vk = VerificationKey::from_raw_bytes(
+        &env,
+        &[0u8; 64],
+        &[0u8; 128],
+        &[0u8; 128],
+        &[0u8; 128],
+        &[],
+    );
+    assert_eq!(vk.ic.len(), 0);
+}
+
+#[test]
+fn test_batch_proof_context_record_and_finalize() {
+    use cougr_core::zk::experimental::{hash_state_root, BatchProofContext};
+    use soroban_sdk::Bytes;
+
+    let env = Env::default();
+    let empty: [Bytes; 0] = [];
+    let initial_root = hash_state_root(&env, &empty);
+
+    let ctx = BatchProofContext::new(initial_root.clone())
+        .record_action()
+        .record_action()
+        .record_action();
+
+    assert_eq!(ctx.action_count, 3);
+
+    let final_root = hash_state_root(&env, &empty);
+    let (init, fin, count) = ctx.finalize(final_root.clone());
+
+    assert_eq!(init, initial_root);
+    assert_eq!(fin, final_root);
+    assert_eq!(count, 3);
+}
+
+#[test]
+fn test_hash_state_root_empty_is_deterministic() {
+    use cougr_core::zk::experimental::hash_state_root;
+    use soroban_sdk::Bytes;
+
+    let env = Env::default();
+    let empty: [Bytes; 0] = [];
+
+    let r1 = hash_state_root(&env, &empty);
+    let r2 = hash_state_root(&env, &empty);
+    assert_eq!(r1, r2);
+}
+
+#[test]
+fn test_hash_state_root_differs_by_content() {
+    use cougr_core::zk::experimental::hash_state_root;
+    use soroban_sdk::Bytes;
+
+    let env = Env::default();
+    let a = Bytes::from_array(&env, &[1u8, 2u8, 3u8]);
+    let b = Bytes::from_array(&env, &[4u8, 5u8, 6u8]);
+
+    let root_a = hash_state_root(&env, &[a]);
+    let root_b = hash_state_root(&env, &[b]);
+    assert_ne!(root_a, root_b);
+}
+
+#[test]
+fn test_bls12_381_aggregate_signatures_empty_fails() {
+    use cougr_core::zk::experimental::bls12_381_aggregate_signatures;
+    use cougr_core::zk::ZKError;
+
+    let env = Env::default();
+    let result = bls12_381_aggregate_signatures(&env, &[]);
+    assert_eq!(result.unwrap_err(), ZKError::InvalidInput);
+}
+
+#[test]
+fn test_bls12_381_verify_aggregated_empty_fails() {
+    use cougr_core::zk::experimental::bls12_381_verify_aggregated;
+    use cougr_core::zk::{Bls12381G1Point, Bls12381G2Point, ZKError};
+
+    let env = Env::default();
+    let g1 = Bls12381G1Point {
+        bytes: BytesN::from_array(&env, &[0u8; 96]),
+    };
+    let g2 = Bls12381G2Point {
+        bytes: BytesN::from_array(&env, &[0u8; 192]),
+    };
+
+    let result = bls12_381_verify_aggregated(&env, &g1, &g2, &[], &[]);
+    assert_eq!(result, Err(ZKError::InvalidInput));
+}
+
+#[test]
+fn test_bls12_381_verify_aggregated_mismatched_lengths_fails() {
+    use cougr_core::zk::experimental::bls12_381_verify_aggregated;
+    use cougr_core::zk::{Bls12381G1Point, Bls12381G2Point, ZKError};
+
+    let env = Env::default();
+    let sig = Bls12381G1Point {
+        bytes: BytesN::from_array(&env, &[0u8; 96]),
+    };
+    let g2 = Bls12381G2Point {
+        bytes: BytesN::from_array(&env, &[0u8; 192]),
+    };
+    let msg = Bls12381G1Point {
+        bytes: BytesN::from_array(&env, &[0u8; 96]),
+    };
+
+    // 1 message but 0 pubkeys
+    let result = bls12_381_verify_aggregated(&env, &sig, &g2, &[msg], &[]);
+    assert_eq!(result, Err(ZKError::InvalidInput));
+}
+
+#[test]
+fn test_bls12_381_verify_aggregated_same_msg_empty_pubkeys_fails() {
+    use cougr_core::zk::experimental::bls12_381_verify_aggregated_same_msg;
+    use cougr_core::zk::{Bls12381G1Point, Bls12381G2Point, ZKError};
+
+    let env = Env::default();
+    let sig = Bls12381G1Point {
+        bytes: BytesN::from_array(&env, &[0u8; 96]),
+    };
+    let g2 = Bls12381G2Point {
+        bytes: BytesN::from_array(&env, &[0u8; 192]),
+    };
+    let msg = Bls12381G1Point {
+        bytes: BytesN::from_array(&env, &[0u8; 96]),
+    };
+
+    let result = bls12_381_verify_aggregated_same_msg(&env, &sig, &g2, &msg, &[]);
+    assert_eq!(result, Err(ZKError::InvalidInput));
+}

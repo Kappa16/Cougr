@@ -1,0 +1,75 @@
+name: Circom Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'internal/cougr-core-circuits/**'
+      - 'src/circuits/generated.rs'
+      - '.github/workflows/circom.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'internal/cougr-core-circuits/**'
+      - 'src/circuits/generated.rs'
+      - '.github/workflows/circom.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+  CIRCOM_VERSION: v2.1.9
+
+concurrency:
+  group: circom-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile-prove-verify:
+    name: compile → setup → prove → verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: internal/cougr-core-circuits
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - name: Setup Node.js (circom witness calculator)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install toolchain dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install circom
+        run: |
+          curl -fL "https://github.com/iden3/circom/releases/download/${CIRCOM_VERSION}/circom-linux-amd64" \
+            -o /usr/local/bin/circom
+          chmod +x /usr/local/bin/circom
+          circom --version
+
+      - name: Cache pot14 ptau
+        uses: actions/cache@v4
+        with:
+          path: internal/cougr-core-circuits/keys/pot14_final.ptau
+          key: pot14-final-${{ runner.os }}-v1
+
+      - name: Run full Circom pipeline
+        run: bun run pipeline
+
+      - name: On-chain integration tests (real VKs + proofs)
+        working-directory: ${{ github.workspace }}
+        run: cargo test --test integration_circuits --features testutils
+
+      - name: Upload exported verification keys
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: cougr-circuit-vks-test
+          path: internal/cougr-core-circuits/exported/*_vk.json
+          retention-days: 14

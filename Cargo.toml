@@ -1,6 +1,15 @@
+[workspace]
+members = [
+    ".",
+    "internal/cougr-core-circuits",
+    "internal/cougr-core-session",
+    "internal/cougr-core-test",
+]
+resolver = "2"
+
 [package]
 name = "cougr-core"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 description = "Cougr - A Soroban-compatible ECS framework for on-chain gaming on Stellar"
 license = "MIT"

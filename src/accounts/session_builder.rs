@@ -58,6 +58,12 @@ impl<'a> SessionBuilder<'a> {
         self
     }
 
+    /// Set expiration relative to the current ledger timestamp.
+    pub fn expires_in(mut self, seconds: u64) -> Self {
+        self.expires_at = self.env.ledger().timestamp().saturating_add(seconds);
+        self
+    }
+
     /// Build the SessionScope.
     pub fn build_scope(self) -> SessionScope {
         SessionScope {
@@ -81,7 +87,7 @@ impl<'a> SessionBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{symbol_short, Env};
+    use soroban_sdk::{symbol_short, testutils::Ledger as _, Env};
 
     #[test]
     fn test_session_builder_new() {
@@ -115,6 +121,16 @@ mod tests {
         let env = Env::default();
         let scope = SessionBuilder::new(&env).expires_at(5000).build_scope();
         assert_eq!(scope.expires_at, 5000);
+    }
+
+    #[test]
+    fn test_session_builder_expires_in() {
+        let env = Env::default();
+        env.ledger().with_mut(|li| {
+            li.timestamp = 2_000;
+        });
+        let scope = SessionBuilder::new(&env).expires_in(800).build_scope();
+        assert_eq!(scope.expires_at, 2_800);
     }
 
     #[test]

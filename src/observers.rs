@@ -227,18 +227,25 @@ mod tests {
     use core::sync::atomic::{AtomicU32, Ordering};
     use soroban_sdk::symbol_short;
 
-    static ADD_COUNT: AtomicU32 = AtomicU32::new(0);
-    static REMOVE_COUNT: AtomicU32 = AtomicU32::new(0);
+    // Each test gets its own counter — no sharing, no races, no locks.
+    static COUNT_ADD: AtomicU32 = AtomicU32::new(0);
+    static COUNT_REMOVE: AtomicU32 = AtomicU32::new(0);
+    static COUNT_WRONG_TYPE: AtomicU32 = AtomicU32::new(0);
+    static COUNT_DESPAWN: AtomicU32 = AtomicU32::new(0);
 
-    fn counting_add_observer(_event: &ComponentEvent, _world: &SimpleWorld, _env: &Env) {
-        ADD_COUNT.fetch_add(1, Ordering::Relaxed);
+    fn obs_add(_: &ComponentEvent, _: &SimpleWorld, _: &Env) {
+        COUNT_ADD.fetch_add(1, Ordering::Relaxed);
     }
-
-    fn counting_remove_observer(_event: &ComponentEvent, _world: &SimpleWorld, _env: &Env) {
-        REMOVE_COUNT.fetch_add(1, Ordering::Relaxed);
+    fn obs_remove(_: &ComponentEvent, _: &SimpleWorld, _: &Env) {
+        COUNT_REMOVE.fetch_add(1, Ordering::Relaxed);
     }
-
-    fn noop_observer(_event: &ComponentEvent, _world: &SimpleWorld, _env: &Env) {}
+    fn obs_wrong_type(_: &ComponentEvent, _: &SimpleWorld, _: &Env) {
+        COUNT_WRONG_TYPE.fetch_add(1, Ordering::Relaxed);
+    }
+    fn obs_despawn(_: &ComponentEvent, _: &SimpleWorld, _: &Env) {
+        COUNT_DESPAWN.fetch_add(1, Ordering::Relaxed);
+    }
+    fn noop_observer(_: &ComponentEvent, _: &SimpleWorld, _: &Env) {}
 
     #[test]
     fn test_registry_new() {
@@ -258,73 +265,73 @@ mod tests {
     #[test]
     fn test_observer_fires_on_add() {
         let env = Env::default();
-        ADD_COUNT.store(0, Ordering::Relaxed);
+        let before = COUNT_ADD.load(Ordering::Relaxed);
 
         let world = SimpleWorld::new(&env);
         let mut observed = ObservedWorld::new(world);
         observed
             .observers_mut()
-            .on_add(symbol_short!("pos"), counting_add_observer);
+            .on_add(symbol_short!("pos"), obs_add);
 
         let e1 = observed.spawn_entity();
         let data = Bytes::from_array(&env, &[1, 2, 3]);
         observed.add_component(e1, symbol_short!("pos"), data, &env);
 
-        assert_eq!(ADD_COUNT.load(Ordering::Relaxed), 1);
+        assert_eq!(COUNT_ADD.load(Ordering::Relaxed) - before, 1);
         assert!(observed.has_component(e1, &symbol_short!("pos")));
     }
 
     #[test]
     fn test_observer_fires_on_remove() {
         let env = Env::default();
-        REMOVE_COUNT.store(0, Ordering::Relaxed);
+        let before = COUNT_REMOVE.load(Ordering::Relaxed);
 
         let world = SimpleWorld::new(&env);
         let mut observed = ObservedWorld::new(world);
         observed
             .observers_mut()
-            .on_remove(symbol_short!("pos"), counting_remove_observer);
+            .on_remove(symbol_short!("pos"), obs_remove);
 
         let e1 = observed.spawn_entity();
         let data = Bytes::from_array(&env, &[1]);
         observed.add_component(e1, symbol_short!("pos"), data, &env);
 
         assert!(observed.remove_component(e1, &symbol_short!("pos"), &env));
-        assert_eq!(REMOVE_COUNT.load(Ordering::Relaxed), 1);
+        assert_eq!(COUNT_REMOVE.load(Ordering::Relaxed) - before, 1);
     }
 
     #[test]
     fn test_observer_not_fired_for_wrong_type() {
         let env = Env::default();
-        ADD_COUNT.store(0, Ordering::Relaxed);
+        let before = COUNT_WRONG_TYPE.load(Ordering::Relaxed);
 
         let world = SimpleWorld::new(&env);
         let mut observed = ObservedWorld::new(world);
         observed
             .observers_mut()
-            .on_add(symbol_short!("vel"), counting_add_observer);
+            .on_add(symbol_short!("vel"), obs_wrong_type);
 
         let e1 = observed.spawn_entity();
         let data = Bytes::from_array(&env, &[1]);
-        // Add "pos" but observer is for "vel"
+        // Add "pos" — observer is for "vel", so it must not fire
         observed.add_component(e1, symbol_short!("pos"), data, &env);
 
-        assert_eq!(ADD_COUNT.load(Ordering::Relaxed), 0);
+        assert_eq!(COUNT_WRONG_TYPE.load(Ordering::Relaxed), before);
     }
 
     #[test]
     fn test_observed_world_despawn() {
         let env = Env::default();
-        let before = REMOVE_COUNT.load(Ordering::Relaxed);
+        let before = COUNT_DESPAWN.load(Ordering::Relaxed);
 
         let world = SimpleWorld::new(&env);
         let mut observed = ObservedWorld::new(world);
         observed
             .observers_mut()
-            .on_remove(symbol_short!("a"), counting_remove_observer);
+            .on_remove(symbol_short!("a"), obs_despawn);
         observed
             .observers_mut()
-            .on_remove(symbol_short!("b"), counting_remove_observer);
+            .on_remove(symbol_short!("b"), obs_despawn);
 
         let e1 = observed.spawn_entity();
         let data = Bytes::from_array(&env, &[1]);
@@ -332,9 +339,7 @@ mod tests {
         observed.add_component(e1, symbol_short!("b"), data, &env);
 
         observed.despawn_entity(e1, &env);
-        // Both components should trigger remove observers
-        let after = REMOVE_COUNT.load(Ordering::Relaxed);
-        assert_eq!(after - before, 2);
+        assert_eq!(COUNT_DESPAWN.load(Ordering::Relaxed) - before, 2);
     }
 
     #[test]

@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**'
+      - 'internal/**'
       - 'tests/**'
       - 'benches/**'
       - 'Cargo.toml'
@@ -15,6 +16,7 @@ on:
     branches: [main, develop]
     paths:
       - 'src/**'
+      - 'internal/**'
       - 'tests/**'
       - 'benches/**'
       - 'Cargo.toml'
@@ -53,7 +55,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
-        run: cargo test
+        run: cargo test --workspace --features testutils
 
       - name: Build library
         run: cargo build

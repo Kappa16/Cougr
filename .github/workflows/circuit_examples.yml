@@ -1,0 +1,74 @@
+name: Circuit Examples
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'examples/hidden_hand/**'
+      - 'examples/fog_explorer/**'
+      - 'examples/dice_duel/**'
+      - 'examples/blind_auction/**'
+      - 'src/circuits/**'
+      - 'internal/cougr-core-circuits/**'
+      - '.github/workflows/circuit_examples.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'examples/hidden_hand/**'
+      - 'examples/fog_explorer/**'
+      - 'examples/dice_duel/**'
+      - 'examples/blind_auction/**'
+      - 'src/circuits/**'
+      - 'internal/cougr-core-circuits/**'
+      - '.github/workflows/circuit_examples.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: circuit-examples-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples:
+    name: ZK Circuit Examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        example:
+          - hidden_hand
+          - fog_explorer
+          - dice_duel
+          - blind_auction
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test ${{ matrix.example }}
+        working-directory: examples/${{ matrix.example }}
+        run: cargo test
+
+  circuits-lib:
+    name: Circuits Module
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run circuits tests
+        run: cargo test -p cougr-core --features testutils -- circuits integration_circuits
+
+      - name: Validate Circom layout scaffolds
+        run: bash internal/cougr-core-circuits/scripts/validate-layouts.sh

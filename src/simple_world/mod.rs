@@ -3,7 +3,9 @@ mod indexing;
 mod tests;
 
 use crate::component::{ComponentStorage, ComponentTrait};
-use soroban_sdk::{contracttype, Bytes, Env, Map, Symbol, Vec};
+use crate::ecs_events::ObservableComponentTrait;
+use crate::rich_component::{rich_component_key, RichComponentTrait};
+use soroban_sdk::{contracttype, Bytes, Env, IntoVal, Map, Symbol, TryFromVal, Val, Vec};
 
 /// Simple entity ID type for Soroban-optimized ECS.
 pub type EntityId = u32;
@@ -321,6 +323,98 @@ impl SimpleWorld {
         self.remove_component(entity_id, &T::component_type())
     }
 
+    /// Store a rich component using Soroban's `#[contracttype]` XDR codec.
+    ///
+    /// Supports `Vec`, `String`, `Option`, nested structs, and enums with data.
+    /// Rich components live in **instance storage** and are keyed separately
+    /// from the ECS `Map`-backed components. Entity IDs are shared.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use cougr_core::impl_rich_component;
+    /// use cougr_core::simple_world::SimpleWorld;
+    /// use soroban_sdk::{contracttype, Env, String};
+    ///
+    /// #[contracttype]
+    /// #[derive(Clone)]
+    /// pub struct PlayerName { pub name: String }
+    ///
+    /// impl_rich_component!(PlayerName, "player_name");
+    ///
+    /// let env = Env::default();
+    /// let mut world = SimpleWorld::new(&env);
+    /// let entity = world.spawn_entity();
+    /// world.set_rich(&env, entity, &PlayerName { name: String::from_str(&env, "Alice") });
+    /// ```
+    pub fn set_rich<T>(&mut self, env: &Env, entity_id: EntityId, component: &T)
+    where
+        T: RichComponentTrait + IntoVal<Env, Val>,
+    {
+        let key = rich_component_key(env, entity_id, T::component_type(env));
+        env.storage().instance().set(&key, component);
+    }
+
+    /// Retrieve a rich component from instance storage, or `None` if absent.
+    pub fn get_rich<T>(&self, env: &Env, entity_id: EntityId) -> Option<T>
+    where
+        T: RichComponentTrait + TryFromVal<Env, Val>,
+    {
+        let key = rich_component_key(env, entity_id, T::component_type(env));
+        env.storage().instance().get(&key)
+    }
+
+    /// Remove a rich component from instance storage.
+    pub fn remove_rich<T: RichComponentTrait>(&mut self, env: &Env, entity_id: EntityId) {
+        let key = rich_component_key(env, entity_id, T::component_type(env));
+        env.storage().instance().remove(&key);
+    }
+
+    /// Store a component and emit a structured Soroban `set` event.
+    ///
+    /// The component type must implement [`ObservableComponentTrait`] (via
+    /// [`impl_component_observed!`]) and derive `#[contracttype]`. The event
+    /// has topics `(COUGR, set, component_symbol)` and carries the
+    /// deserialized struct as data.
+    ///
+    /// [`ObservableComponentTrait`]: crate::ecs_events::ObservableComponentTrait
+    pub fn set_typed_observed<T>(&mut self, env: &Env, entity_id: EntityId, component: &T)
+    where
+        T: ObservableComponentTrait,
+    {
+        let data = component.serialize(env);
+        self.add_component_with_storage(
+            entity_id,
+            T::component_type(),
+            data.clone(),
+            T::default_storage(),
+        );
+        T::emit_set_event(env, entity_id, &data);
+    }
+
+    /// Remove a component and emit a structured Soroban `del` event if the
+    /// component was present.
+    ///
+    /// The event has topics `(COUGR, del, component_type)` and carries the
+    /// entity ID as data.
+    ///
+    /// Returns `true` if a component was removed.
+    pub fn remove_component_observed(
+        &mut self,
+        entity_id: EntityId,
+        component_type: &Symbol,
+        env: &Env,
+    ) -> bool {
+        let removed = self.remove_component(entity_id, component_type);
+        if removed {
+            crate::ecs_events::ComponentRemovedEvent {
+                component_type: component_type.clone(),
+                entity_id,
+            }
+            .publish(env);
+        }
+        removed
+    }
+
     pub fn despawn_entity(&mut self, entity_id: EntityId) {
         self.version += 1;
         if let Some(types) = self.entity_components.get(entity_id) {
@@ -334,5 +428,78 @@ impl SimpleWorld {
             }
         }
         self.entity_components.remove(entity_id);
+    }
+
+    // ─── Soroban instance-storage persistence ─────────────────────────────────
+
+    /// Load a `SimpleWorld` from Soroban instance storage.
+    ///
+    /// Returns a fresh empty world if the key does not exist yet. Pair with
+    /// [`save_to_instance`] to build a clean contract entrypoint pattern.
+    /// Prefer the [`SorobanGame`](crate::game::SorobanGame) trait +
+    /// [`impl_soroban_game!`] macro to avoid repeating the storage key in
+    /// every entrypoint.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use cougr_core::simple_world::SimpleWorld;
+    /// use soroban_sdk::{symbol_short, Env};
+    ///
+    /// let env = Env::default();
+    /// let key = symbol_short!("WORLD");
+    /// let world = SimpleWorld::load_from_instance(&env, &key);
+    /// ```
+    pub fn load_from_instance(env: &Env, key: &Symbol) -> Self {
+        env.storage()
+            .instance()
+            .get(key)
+            .unwrap_or_else(|| SimpleWorld::new(env))
+    }
+
+    /// Persist this world to Soroban instance storage under `key`.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use cougr_core::simple_world::SimpleWorld;
+    /// use soroban_sdk::{symbol_short, Env};
+    ///
+    /// let env = Env::default();
+    /// let key = symbol_short!("WORLD");
+    /// let world = SimpleWorld::new(&env);
+    /// world.save_to_instance(&env, &key);
+    /// ```
+    pub fn save_to_instance(&self, env: &Env, key: &Symbol) {
+        env.storage().instance().set(key, self);
+    }
+
+    /// Store a rich component and emit a
+    /// [`RichComponentChangedEvent`](crate::ecs_events::RichComponentChangedEvent).
+    ///
+    /// Off-chain indexers subscribed to `("COUGR", "rich", <type>)` topics
+    /// receive the notification and can query instance storage for the full
+    /// updated value.
+    pub fn set_rich_observed<T>(&mut self, env: &Env, entity_id: EntityId, component: &T)
+    where
+        T: RichComponentTrait + IntoVal<Env, Val>,
+    {
+        self.set_rich(env, entity_id, component);
+        crate::ecs_events::RichComponentChangedEvent {
+            component_type: T::component_type(env),
+            entity_id,
+        }
+        .publish(env);
+    }
+
+    /// Remove a rich component and emit a `del` event if it was present.
+    pub fn remove_rich_observed<T: RichComponentTrait>(&mut self, env: &Env, entity_id: EntityId) {
+        let key = rich_component_key(env, entity_id, T::component_type(env));
+        if env.storage().instance().has(&key) {
+            env.storage().instance().remove(&key);
+            crate::ecs_events::ComponentRemovedEvent {
+                component_type: T::component_type(env),
+                entity_id,
+            }
+            .publish(env);
+        }
     }
 }

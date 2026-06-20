@@ -1,6 +1,6 @@
 //! Generic trait for game circuits and shared scalar encoding helpers.
 
-use soroban_sdk::{BytesN, Env};
+use soroban_sdk::{unwrap::UnwrapOptimized, BytesN, Env};
 
 use super::error::ZKError;
 use super::groth16::verify_groth16;
@@ -47,6 +47,33 @@ pub trait GameCircuit {
         public_inputs: &[Scalar],
     ) -> Result<bool, ZKError> {
         verify_groth16(env, self.verification_key(), proof, public_inputs)
+    }
+}
+
+/// Encode a `u32` as a BN254 Fr scalar (big-endian), matching Circom/snarkjs public signals.
+pub fn field_u32_to_scalar(env: &Env, val: u32) -> Scalar {
+    let u = soroban_sdk::U256::from_u32(env, val);
+    Scalar {
+        bytes: u.to_be_bytes().try_into().unwrap_optimized(),
+    }
+}
+
+/// Encode an `i32` as a BN254 Fr scalar (big-endian), matching Circom signal semantics.
+pub fn field_i32_to_scalar(env: &Env, val: i32) -> Scalar {
+    if val >= 0 {
+        return field_u32_to_scalar(env, val as u32);
+    }
+    const FR_MODULUS_BE: [u8; 32] = [
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
+        0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00,
+        0x00, 0x01,
+    ];
+    let modulus =
+        soroban_sdk::U256::from_be_bytes(env, &soroban_sdk::Bytes::from_array(env, &FR_MODULUS_BE));
+    let abs = soroban_sdk::U256::from_u32(env, (-val) as u32);
+    let field = modulus.sub(&abs);
+    Scalar {
+        bytes: field.to_be_bytes().try_into().unwrap_optimized(),
     }
 }
 

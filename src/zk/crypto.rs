@@ -18,6 +18,15 @@ pub fn bn254_g1_add(env: &Env, p1: &G1Point, p2: &G1Point) -> Result<G1Point, ZK
     })
 }
 
+/// Negate a BN254 G1 point (required for standard Groth16 pairing layout).
+pub fn bn254_g1_neg(_env: &Env, point: &G1Point) -> G1Point {
+    let p = Bn254G1Affine::from_bytes(point.bytes.clone());
+    let neg = core::ops::Neg::neg(&p);
+    G1Point {
+        bytes: neg.to_bytes(),
+    }
+}
+
 /// Multiply a BN254 G1 point by a scalar.
 ///
 /// Wraps `env.crypto().bn254().g1_mul()`.

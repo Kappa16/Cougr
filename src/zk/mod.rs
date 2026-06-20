@@ -53,6 +53,7 @@
 //! ```
 
 pub(crate) mod advanced;
+pub(crate) mod batch;
 pub(crate) mod bls12_381;
 pub(crate) mod circuits;
 pub(crate) mod commitment;
@@ -62,6 +63,7 @@ pub(crate) mod error;
 pub mod experimental;
 pub(crate) mod groth16;
 pub(crate) mod interfaces;
+pub(crate) mod interop;
 pub(crate) mod merkle;
 pub mod stable;
 pub(crate) mod systems;

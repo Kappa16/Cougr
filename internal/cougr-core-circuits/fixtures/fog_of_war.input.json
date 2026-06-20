@@ -1,0 +1,10 @@
+{
+  "map_root": "100",
+  "prior_explored_root": "10",
+  "next_explored_root": "3800159943585368899357965432145330378305236268331156843798518904714127135142",
+  "origin_x": "0",
+  "origin_y": "0",
+  "tile_x": "1",
+  "tile_y": "2",
+  "visibility_radius": "3"
+}
