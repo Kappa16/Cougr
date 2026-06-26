@@ -1,6 +1,8 @@
 #![no_std]
 
-use cougr_core::zk::{verify_inclusion, OnChainMerkleProof, SparseMerkleTree};
+use cougr_core::privacy::stable::{
+    verify_inclusion, OnChainMerkleProof, SparseMerkleTree,
+};
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
     Map, Vec,

@@ -1,5 +1,5 @@
 use super::*;
-use cougr_core::zk::MerkleTree;
+use cougr_core::privacy::stable::MerkleTree;
 extern crate alloc;
 use alloc::vec::Vec as StdVec;
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, Vec};
@@ -256,4 +256,56 @@ fn test_full_playable_sequence_to_win() {
     assert_eq!(state.game_config.status, GameStatus::Won);
     assert_eq!(state.player_state.health, DEFAULT_MAX_HEALTH - 1);
     assert_eq!(state.player_state.score, DEFAULT_TREASURE_VALUE * 2);
+}
+
+#[test]
+fn test_commit_phase() {
+    // Tests that the game initializes in the committed state
+    let (env, client, player) = setup();
+    env.mock_all_auths();
+    let map = build_test_map(&env);
+    let root = map.tree.root_bytes(&env);
+
+    client.init_game(&player, &root, &MAP_W, &MAP_H, &2u32);
+
+    let state = client.get_state();
+    assert_eq!(state.map_root.root, root);
+    assert_eq!(state.game_config.status, GameStatus::Active);
+}
+
+#[test]
+fn test_reveal_phase_with_valid_proof() {
+    // Tests the reveal/exploration phase with correct Merkle proof
+    let (env, client, player) = setup();
+    env.mock_all_auths();
+    let map = build_test_map(&env);
+    let root = map.tree.root_bytes(&env);
+    client.init_game(&player, &root, &MAP_W, &MAP_H, &99u32);
+
+    let x = 0u32;
+    let y = 0u32;
+    let value = value_at(&map, x, y);
+    let proof = proof_vec(&env, &map, x, y);
+    client.explore(&player, &x, &y, &value, &proof);
+
+    let state = client.get_state();
+    assert_eq!(state.player_state.x, 0);
+    assert_eq!(state.player_state.y, 0);
+}
+
+#[test]
+#[should_panic]
+fn test_invalid_reveal_value_rejected() {
+    // Tests that providing an incorrect cell value during reveal is rejected
+    let (env, client, player) = setup();
+    env.mock_all_auths();
+    let map = build_test_map(&env);
+    let root = map.tree.root_bytes(&env);
+    client.init_game(&player, &root, &MAP_W, &MAP_H, &2u32);
+
+    let x = 1u32;
+    let y = 0u32;
+    let proof = proof_vec(&env, &map, x, y);
+    // Claim wrong value
+    client.explore(&player, &x, &y, &99, &proof);
 }
